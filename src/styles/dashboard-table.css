@@ -1,0 +1,137 @@
+/* src/styles/dashboard-table.css */
+.guest-table-wrap {
+  position: relative;
+  overflow-x: auto;
+}
+
+.guest-table-wrap .table {
+  white-space: nowrap;
+  margin-bottom: 0;
+}
+
+.guest-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--card);
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+
+[data-theme="dark"] .guest-table thead th {
+  background: #0b1220;
+  color: rgba(255,255,255,0.88);
+  border-bottom-color: rgba(255,255,255,0.08);
+}
+
+.guest-table .sticky-first {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--bg-card, #fff);
+  border-right: 1px solid rgba(0,0,0,.10);
+}
+
+.guest-table thead .sticky-first {
+  z-index: 6;
+  background: var(--card);
+}
+
+.guest-table.table-striped tbody tr:nth-of-type(odd) .sticky-first {
+  background: rgba(0,0,0,0.02);
+}
+[data-theme="dark"] .guest-table.table-striped tbody tr:nth-of-type(odd) .sticky-first {
+  background: rgba(255,255,255,0.025);
+}
+
+.guest-table tbody .sticky-first {
+  box-shadow: 3px 0 10px -10px rgba(0,0,0,.45);
+}
+[data-theme="dark"] .guest-table tbody .sticky-first {
+  box-shadow: 3px 0 14px -12px rgba(0,0,0,.70);
+}
+
+.guest-table th.sticky-actions,
+.guest-table td.sticky-actions {
+  position: sticky;
+  right: 0;
+  background: var(--bg-card, #fff);
+  border-left: 1px solid rgba(0,0,0,.10);
+  z-index: 2;
+  box-shadow: -12px 0 14px -14px rgba(0,0,0,.45);
+}
+
+.guest-table th.sticky-actions--head {
+  z-index: 5;
+  background: var(--card);
+}
+
+.guest-table td.sticky-actions--cell {
+  z-index: 4;
+}
+
+.guest-table th.sticky-actions--head::before,
+.guest-table td.sticky-actions--cell::before {
+  content: "";
+  position: absolute;
+  left: -28px;
+  top: 0;
+  width: 28px;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  opacity: .95;
+  background: linear-gradient(to left, rgba(0,0,0,0), var(--bg-card, #fff));
+}
+
+/* ✅ Ensure the fade edge never blocks button clicks */
+.guest-table td.sticky-actions--cell,
+.guest-table th.sticky-actions--head {
+  position: relative; /* anchors ::before */
+}
+
+.guest-table td.sticky-actions--cell > * {
+  position: relative;
+  z-index: 1; /* sits above ::before */
+}
+
+[data-theme="dark"] .guest-table th.sticky-actions,
+[data-theme="dark"] .guest-table td.sticky-actions {
+  border-left-color: rgba(255,255,255,.10);
+  box-shadow: -12px 0 18px -14px rgba(0,0,0,.70);
+}
+
+.guest-table tbody tr.lift-row {
+  transition: transform 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
+}
+.guest-table tbody tr.lift-row:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 18px rgba(0,0,0,.08);
+}
+
+.guest-table--compact th,
+.guest-table--compact td {
+  padding-top: .35rem !important;
+  padding-bottom: .35rem !important;
+  font-size: .92rem;
+}
+.guest-table--compact .btn.btn-sm {
+  padding: .2rem .45rem;
+  font-size: .78rem;
+}
+.guest-table--compact .badge {
+  font-size: .72rem;
+}
+.table-actions-compact .btn {
+  padding: .2rem .45rem;
+  font-size: .78rem;
+}
+
+.guest-row-skel td { padding-top: .75rem; padding-bottom: .75rem; }
+.table-skel__line {
+  height: 12px;
+  width: 100%;
+  border-radius: 999px;
+  background: rgba(0,0,0,.08);
+}
+[data-theme="dark"] .table-skel__line { background: rgba(255,255,255,.10); }

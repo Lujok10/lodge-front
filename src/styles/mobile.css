@@ -1,0 +1,45 @@
+/* Financial cards – tighter spacing on phones */
+@media (max-width: 576px) {
+  .card-body {
+    padding: 0.75rem;
+  }
+
+  .card-body .fs-4 {
+    font-size: 1.25rem;
+  }
+
+  h5 {
+    font-size: 1.05rem;
+  }
+}
+
+/* Make action buttons wrap nicely */
+@media (max-width: 576px) {
+  .d-flex.gap-2 {
+    flex-wrap: wrap;
+  }
+
+  .d-flex.gap-2 button {
+    width: 100%;
+  }
+}
+
+/* Improve modal spacing on small screens */
+@media (max-width: 576px) {
+  .modal-dialog {
+    margin: 0.5rem;
+  }
+
+  .modal-body {
+    font-size: 0.9rem;
+  }
+}
+
+/* Reduce table cell padding slightly */
+@media (max-width: 576px) {
+  table.table td,
+  table.table th {
+    padding: 0.4rem;
+    font-size: 0.85rem;
+  }
+}

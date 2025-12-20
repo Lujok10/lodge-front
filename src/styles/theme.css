@@ -1,0 +1,200 @@
+/* ==============================
+   THEME VARIABLES (Light Default)
+   ============================== */
+:root {
+  --bg-page: #f5f7fa;
+  --bg-card: #ffffff;
+  --bg-table: #ffffff;
+  --bg-header: #212529;
+
+  --text-primary: #212529;
+  --text-secondary: #6c757d;
+
+  --border-color: #dee2e6;
+  --accent: #0d6efd;
+
+  --row-alt: #f8f9fa;
+}
+
+/* ==============================
+   DARK MODE THEME
+   ============================== */
+[data-theme="dark"] {
+  --bg-page: #121212;
+  --bg-card: #1e1e1e;
+  --bg-table: #1c1c1c;
+  --bg-header: #1f1f1f;
+
+  --text-primary: #f1f1f1;
+  --text-secondary: #b5b5b5;
+
+  --border-color: #2c2c2c;
+  --accent: #4dabf7;
+
+  --row-alt: #222;
+}
+
+/* ==============================
+   GLOBAL APPLICATION STYLES
+   ============================== */
+
+body {
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+}
+
+/* Cards / panels / alerts / form elements */
+.card,
+.modal-content,
+.alert,
+.form-control,
+.form-select {
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+/* Navbar */
+.navbar {
+  background-color: var(--bg-header) !important;
+}
+
+/* Tables */
+.table {
+  background-color: var(--bg-table);
+  color: var(--text-primary);
+}
+
+.table thead th {
+  background-color: var(--bg-header);
+  color: #fff;
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+  background-color: var(--row-alt);
+}
+
+/* Inputs */
+.form-control,
+.form-select {
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+}
+
+.form-control::placeholder {
+  color: var(--text-secondary);
+}
+
+/* Buttons */
+.btn-primary {
+  background-color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Modals */
+.modal-content {
+  background-color: var(--bg-card);
+}
+
+/* Scrollbars (optional polish) */
+::-webkit-scrollbar {
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+/* Unauthorized page: theme-aware */
+.unauthorized-card {
+  background: var(--card-bg, #ffffff);
+  color: var(--text-color, #111);
+  border: 1px solid var(--border-color, rgba(0,0,0,.1));
+}
+
+.unauthorized-hint {
+  color: var(--muted-text, #6c757d);
+}
+
+/* If your theme.css already defines these, this will automatically match */
+[data-theme="dark"] .unauthorized-card {
+  background: var(--card-bg, #1e1e1e);
+  color: var(--text-color, #f1f1f1);
+  border-color: var(--border-color, rgba(255,255,255,.15));
+}
+
+/* -------------------------------------------------------
+   GUEST TABLE: Sticky Actions + Apple fade edge (SCOPED)
+-------------------------------------------------------- */
+
+/* Ensure guest table wrapper can show the fade edge cleanly */
+.guest-table-wrap {
+  position: relative;
+}
+
+/* Sticky Actions column (Guest table only) */
+.guest-table th.sticky-actions,
+.guest-table td.sticky-actions {
+  position: sticky;
+  right: 0;
+  z-index: 3;
+  background: inherit; /* ✅ matches striped rows automatically */
+  border-left: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+/* Header above body */
+.guest-table th.sticky-actions--head {
+  z-index: 5;
+  /* header should look like your header */
+  background: var(--bg-header);
+  color: #fff;
+}
+
+/* Cell above normal cells but below header */
+.guest-table td.sticky-actions--cell {
+  z-index: 4;
+  position: sticky;
+  right: 0;
+}
+
+/* Add a premium separation shadow */
+.guest-table th.sticky-actions--head,
+.guest-table td.sticky-actions--cell {
+  box-shadow: -12px 0 14px -14px rgba(0, 0, 0, 0.45);
+}
+
+/* Apple-style fade edge */
+.guest-table th.sticky-actions--head::before,
+.guest-table td.sticky-actions--cell::before {
+  content: "";
+  position: absolute;
+  left: -22px;
+  top: 0;
+  width: 22px;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0.95;
+
+  /* Light fade */
+  background: linear-gradient(
+    to left,
+    rgba(255, 255, 255, 0),
+    rgba(255, 255, 255, 1)
+  );
+}
+
+/* Dark mode fade uses your theme vars */
+[data-theme="dark"] .guest-table th.sticky-actions--head::before,
+[data-theme="dark"] .guest-table td.sticky-actions--cell::before {
+  background: linear-gradient(
+    to left,
+    rgba(28, 28, 28, 0),
+    var(--bg-table)
+  );
+}
+
+/* Keep action buttons aligned */
+.guest-table td.sticky-actions--cell > div {
+  justify-content: flex-end;
+  white-space: nowrap;
+}

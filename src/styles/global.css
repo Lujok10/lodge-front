@@ -1,0 +1,168 @@
+/* =========================
+   GUEST TABLE (SCOPED ONLY)
+   Sticky Header + Sticky First Col + Sticky Actions
+   ========================= */
+
+.guest-table-wrap {
+  position: relative;
+}
+
+/* Ensure horizontal scroll works */
+.guest-table-wrap .table {
+  white-space: nowrap;
+}
+
+/* -------------------------
+   Sticky HEADER (top)
+-------------------------- */
+.guest-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3; /* base header layer */
+  background: var(--bg-header, #212529);
+  color: #fff;
+  border-bottom: 1px solid rgba(0,0,0,.12);
+}
+
+/* Dark theme header polish */
+[data-theme="dark"] .guest-table thead th {
+  background: #0b1220;
+  color: rgba(255,255,255,0.88);
+  border-bottom-color: rgba(255,255,255,0.08);
+}
+
+/* -------------------------
+   Sticky FIRST column (left)
+-------------------------- */
+.guest-table .sticky-first {
+  position: sticky;
+  left: 0;
+  z-index: 2; /* body sticky-first sits above normal cells */
+  background: var(--bg-table, #fff);
+  border-right: 1px solid rgba(0,0,0,.10);
+}
+
+/* Sticky-first in HEADER must be above everything (corner cell) */
+.guest-table thead .sticky-first {
+  z-index: 6; /* top-most corner */
+  background: var(--bg-header, #212529);
+  color: #fff;
+}
+
+/* Preserve striping on sticky-first cells */
+.guest-table.table-striped tbody tr:nth-of-type(odd) .sticky-first {
+  background: var(--row-alt, #f8f9fa);
+}
+
+[data-theme="dark"] .guest-table.table-striped tbody tr:nth-of-type(odd) .sticky-first {
+  background: rgba(255,255,255,0.025);
+}
+
+/* Optional subtle shadow edge on sticky-first so it feels “pinned” */
+.guest-table tbody .sticky-first {
+  box-shadow: 3px 0 10px -10px rgba(0,0,0,.45);
+}
+[data-theme="dark"] .guest-table tbody .sticky-first {
+  box-shadow: 3px 0 14px -12px rgba(0,0,0,.70);
+}
+
+/* -------------------------
+   Sticky ACTIONS column (right)
+-------------------------- */
+.guest-table th.sticky-actions,
+.guest-table td.sticky-actions {
+  position: sticky;
+  right: 0;
+  background: var(--bg-table, #fff); /* ✅ solid background prevents flicker */
+  border-left: 1px solid rgba(0,0,0,.10);
+  z-index: 2; /* body sticky-actions above normal cells */
+  box-shadow: -12px 0 14px -14px rgba(0,0,0,.45);
+}
+
+/* Header Actions must be above body rows */
+.guest-table th.sticky-actions--head {
+  z-index: 5; /* below corner (6), above header (3) */
+  background: var(--bg-header, #212529);
+  color: #fff;
+}
+
+/* Actions cell layer */
+.guest-table td.sticky-actions--cell {
+  z-index: 4;
+}
+
+/* Apple-style fade edge for Actions column (matches bg-table — no mismatch) */
+.guest-table th.sticky-actions--head::before,
+.guest-table td.sticky-actions--cell::before {
+  content: "";
+  position: absolute;
+  left: -28px;
+  top: 0;
+  width: 28px;
+  height: 100%;
+  pointer-events: none;
+  opacity: .95;
+  background: linear-gradient(to left, rgba(0,0,0,0), var(--bg-table, #fff));
+}
+
+/* Dark mode borders/shadows */
+[data-theme="dark"] .guest-table th.sticky-actions,
+[data-theme="dark"] .guest-table td.sticky-actions {
+  border-left-color: rgba(255,255,255,.10);
+  box-shadow: -12px 0 18px -14px rgba(0,0,0,.70);
+}
+
+/* -------------------------
+   Row hover “lift”
+-------------------------- */
+.guest-table tbody tr.lift-row {
+  transition: transform 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
+}
+.guest-table tbody tr.lift-row:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 18px rgba(0,0,0,.08);
+}
+
+/* Compact mode */
+.guest-table--compact th,
+.guest-table--compact td {
+  padding-top: .35rem !important;
+  padding-bottom: .35rem !important;
+  font-size: .92rem;
+}
+.guest-table--compact .btn.btn-sm {
+  padding: .2rem .45rem;
+  font-size: .78rem;
+}
+.guest-table--compact .badge {
+  font-size: .72rem;
+}
+.table-actions-compact .btn {
+  padding: .2rem .45rem;
+  font-size: .78rem;
+}
+
+/* Prevent table hover animations from affecting modals */
+body.modal-open .guest-table tbody tr.lift-row:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* Scoped dark mode table contrast */
+[data-theme="dark"] .guest-table {
+  background-color: #0f172a;
+  color: rgba(255,255,255,0.88);
+}
+[data-theme="dark"] .guest-table tbody td {
+  border-color: rgba(255,255,255,0.06);
+}
+[data-theme="dark"] .guest-table.table-striped tbody tr:nth-of-type(odd) {
+  background-color: rgba(255,255,255,0.025);
+}
+
+/* =========================
+   RECEIPT MODAL – PREMIUM
+   ========================= */
+
+/* Card feel inside receipt */
+/* 
