@@ -130,7 +130,7 @@
 
 //   const fetchGuests = async () => {
 //     try {
-//       const res = await api.get("/api/guests");
+//       const res = await api.get("/guests");
 //       setGuests(res.data);
 //     } catch {
 //       alert("Failed to fetch guests");
@@ -322,7 +322,7 @@
 
 //   const fetchGuests = async () => {
 //     try {
-//       const res = await api.get("/api/guests");
+//       const res = await api.get("/guests");
 //       setGuests(res.data);
 //     } catch {
 //       alert("Failed to fetch guests");
@@ -515,7 +515,7 @@
 
 //   const fetchGuests = async () => {
 //     try {
-//       const res = await api.get("/api/guests");
+//       const res = await api.get("/guests");
 //       setGuests(res.data);
 //     } catch {
 //       alert("Failed to fetch guests");

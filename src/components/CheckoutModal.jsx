@@ -12,9 +12,7 @@ export default function CheckoutModal({ guest, onClose, refresh }) {
   const handleCheckout = async (e) => {
     e.preventDefault();
     try {
-      await api.post(`/guests/${guest.id}/checkout`, null, {
-        params: { paymentAmount, paymentType },
-      });
+      await api.post(`/guests/checkout/${guest.id}`, { idNumber: String(paymentAmount || "").slice(-4), paymentType });
       refresh();
       onClose();
     } catch (err) {

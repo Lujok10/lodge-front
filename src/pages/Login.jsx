@@ -48,22 +48,27 @@ export default function Login() {
       });
 
       // ✅ ADAPT these fields to match your response
-      const { role, token, hotelCode, firstLogin, displayName } = res.data || {};
+      const { username: uName, role, hotelCode, mustChangePassword } = res.data || {};
 
       if (!role) throw new Error("Missing role from server response.");
 
       // persist auth
-      if (token) localStorage.setItem("token", token);
       localStorage.setItem("role", role);
-      localStorage.setItem("username", displayName || username.trim());
+      localStorage.setItem("username", (uName || username.trim()));
       if (hotelCode) localStorage.setItem("hotelCode", hotelCode);
+      else localStorage.removeItem("hotelCode");
+      localStorage.setItem(
+        "mustChangePassword",
+        mustChangePassword ? "true" : "false"
+      );
+       localStorage.removeItem("token");
 
       // remember me
       if (rememberMe) localStorage.setItem("remember_username", username.trim());
 
       notify.updateSuccess(toastId, "Welcome back!");
 
-      if (firstLogin) {
+      if (mustChangePassword) {
         navigate("/first-login-change-password");
       } else {
         navigate("/");

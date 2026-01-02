@@ -9,29 +9,41 @@ export default function ChangePassword() {
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    if (newPassword.length < 8) {
-      alert("New password must be at least 8 characters.");
-      return;
-    }
-    if (newPassword !== confirm) {
-      alert("New passwords do not match.");
-      return;
-    }
+  if (!currentPassword) {
+    alert("Enter your current password.");
+    return;
+  }
 
-    try {
-      await api.post("/auth/change-password", {
-        currentPassword,
-        newPassword,
-      });
+  if (newPassword.length < 8) {
+    alert("New password must be at least 8 characters.");
+    return;
+  }
+  if (newPassword !== confirm) {
+    alert("New passwords do not match.");
+    return;
+  }
 
-      alert("Password updated successfully.");
-      navigate("/");
-    } catch (err) {
-      alert(err?.response?.data || "Failed to change password.");
-    }
-  };
+  try {
+    const res = await api.post("/auth/change-password", {
+      currentPassword,
+      newPassword,
+    });
+
+    // ✅ IMPORTANT: stop first-login redirects after success
+    localStorage.setItem("mustChangePassword", "false");
+
+    alert(typeof res.data === "string" ? res.data : "Password updated successfully.");
+    navigate("/");
+  } catch (err) {
+    const msg =
+      err?.response?.data?.message ||
+      err?.response?.data ||
+      "Failed to change password.";
+    alert(typeof msg === "string" ? msg : "Failed to change password.");
+  }
+};
 
   return (
     <div className="container vh-100 d-flex justify-content-center align-items-center">

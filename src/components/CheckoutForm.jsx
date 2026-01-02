@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import api from "../api";
 import dayjs from "dayjs";
 import toast from "react-hot-toast";
+import { getApiErrorMessage } from "../utils/apiError";
 
 const DAILY_RATE = 100;
 const LATE_CHECKOUT_FEE = 50;
@@ -11,11 +12,14 @@ const LATE_CHECKOUT_FEE = 50;
 export default function CheckoutForm({ guest, refresh, role, onCheckoutSuccess }) {
   const [paymentType, setPaymentType] = useState("CASH");
   const [idLast4, setIdLast4] = useState("");
+  const [adminOverride, setAdminOverride] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const openBtnRef = useRef(null);
   const inputRef = useRef(null);
+
+  const isSuperAdmin = String(role || "").toUpperCase() === "SUPER_ADMIN";
 
   const summary = useMemo(() => {
     if (!guest?.checkInTime) return null;
@@ -52,8 +56,10 @@ export default function CheckoutForm({ guest, refresh, role, onCheckoutSuccess }
     };
     window.addEventListener("keydown", onKeyDown);
 
-    // Focus input on open
-    const t = setTimeout(() => inputRef.current?.focus(), 0);
+    // Focus input on open (only when we expect ID entry)
+    const t = setTimeout(() => {
+      if (!(isSuperAdmin && adminOverride)) inputRef.current?.focus();
+    }, 0);
 
     return () => {
       clearTimeout(t);
@@ -72,38 +78,55 @@ export default function CheckoutForm({ guest, refresh, role, onCheckoutSuccess }
       return;
     }
 
-    if (!guest?.idNumber || String(guest.idNumber).trim().length < 4) {
-      toast.error(
-        "This guest has no valid ID recorded. Please update the guest with an ID before checkout."
-      );
-      return;
+    const override = isSuperAdmin && adminOverride;
+
+    // If NOT override, enforce last4 rules on the client
+    if (!override) {
+      if (!guest?.idNumber || String(guest.idNumber).trim().length < 4) {
+        toast.error(
+          "This guest has no valid ID recorded. Please update the guest with an ID before checkout."
+        );
+        return;
+      }
+
+      const last4 = (idLast4 || "").trim();
+      if (last4.length !== 4) {
+        toast.error("Please enter the last 4 digits of the guest's ID.");
+        return;
+      }
     }
 
-    const last4 = (idLast4 || "").trim();
-    if (last4.length !== 4) {
-      toast.error("Please enter the last 4 digits of the guest's ID.");
-      return;
+    if (override) {
+      const ok = window.confirm(
+        "Admin Override: This will checkout the guest WITHOUT ID verification. This action will be audited. Continue?"
+      );
+      if (!ok) return;
     }
 
     setLoading(true);
-    const toastId = toast.loading("Checking out guest...");
+    const toastId = toast.loading(override ? "Checking out (override)..." : "Checking out guest...");
 
     try {
+      const payload = override
+        ? { paymentType }
+        : { paymentType, idNumber: (idLast4 || "").trim() };
+
       await api.post(
         `/guests/checkout/${guest.id}`,
-        { paymentType, idNumber: last4 },
-        { headers: { "X-User-Role": role || "MANAGER" } }
+        payload,
+        {
+          headers: {
+            "X-User-Role": role || "MANAGER",
+            ...(override ? { "X-Admin-Override": "true" } : {}),
+          },
+        }
       );
 
       toast.success("Checkout completed", { id: toastId });
 
-      /**
-       * Stable modal flow:
-       * - Close checkout modal
-       * - Then open receipt modal (Dashboard fetchReceipt should open immediately + show loading)
-       */
       setShowModal(false);
       setIdLast4("");
+      setAdminOverride(false);
 
       if (onCheckoutSuccess) {
         await onCheckoutSuccess(guest.id);
@@ -113,16 +136,19 @@ export default function CheckoutForm({ guest, refresh, role, onCheckoutSuccess }
     } catch (err) {
       console.error("Checkout failed:", err);
 
-      if (err?.response?.status === 403) {
-        toast.error("The last 4 digits of the ID do not match the one on file.", {
-          id: toastId,
-        });
-      } else if (err?.response?.status === 400) {
-        toast.error("Checkout failed. Make sure an ID was recorded at check-in.", {
-          id: toastId,
-        });
+      const status = err?.response?.status;
+      const msg = getApiErrorMessage(err, "Checkout failed. Please try again.");
+
+      if (status === 422) {
+        toast.error(msg || "The last 4 digits do not match the ID on file.", { id: toastId });
+      } else if (status === 400) {
+        toast.error(msg || "Checkout failed. Please provide the last 4 digits of the ID.", { id: toastId });
+      } else if (status === 403) {
+        toast.error(msg || "You do not have permission to checkout this guest.", { id: toastId });
+      } else if (status === 404) {
+        toast.error(msg || "Guest not found.", { id: toastId });
       } else {
-        toast.error("Failed to checkout guest. Please try again.", { id: toastId });
+        toast.error(msg, { id: toastId });
       }
     } finally {
       setLoading(false);
@@ -153,9 +179,7 @@ export default function CheckoutForm({ guest, refresh, role, onCheckoutSuccess }
               <div className="modal-dialog modal-dialog-centered">
                 <div className="modal-content">
                   <div className="modal-header">
-                    <h5 className="modal-title">
-                      Checkout {guest?.firstName || ""}
-                    </h5>
+                    <h5 className="modal-title">Checkout {guest?.firstName || ""}</h5>
                     <button
                       type="button"
                       className="btn-close"
@@ -179,6 +203,26 @@ export default function CheckoutForm({ guest, refresh, role, onCheckoutSuccess }
                       <option value="OTHER">Other</option>
                     </select>
 
+                    {isSuperAdmin && (
+                      <div className="form-check mb-3">
+                        <input
+                          className="form-check-input"
+                          type="checkbox"
+                          id={`override-${guest?.id}`}
+                          checked={adminOverride}
+                          onChange={(e) => setAdminOverride(e.target.checked)}
+                          disabled={loading}
+                        />
+                        <label
+                          className="form-check-label"
+                          htmlFor={`override-${guest?.id}`}
+                        >
+                          Admin Override (checkout without ID verification)
+                        </label>
+                        <div className="form-text">This action will be audited.</div>
+                      </div>
+                    )}
+
                     <label className="form-label">Last 4 digits of ID</label>
                     <input
                       ref={inputRef}
@@ -189,7 +233,7 @@ export default function CheckoutForm({ guest, refresh, role, onCheckoutSuccess }
                       maxLength={4}
                       inputMode="numeric"
                       placeholder="e.g. 1234"
-                      disabled={loading}
+                      disabled={loading || (isSuperAdmin && adminOverride)}
                     />
 
                     {summary && (
@@ -204,9 +248,7 @@ export default function CheckoutForm({ guest, refresh, role, onCheckoutSuccess }
                           <strong>Late Checkout Fee:</strong> K{summary.lateFee}
                         </p>
                         <hr className="my-2" />
-                        <p className="fw-bold mb-0">
-                          Total Payment: K{summary.total}
-                        </p>
+                        <p className="fw-bold mb-0">Total Payment: K{summary.total}</p>
                       </div>
                     )}
                   </div>

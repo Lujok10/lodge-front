@@ -150,6 +150,12 @@ export default function Dashboard() {
     navigate("/login");
   };
 
+  // ✅ Route to the correct password page based on first-login requirement
+  const handleChangePassword = () => {
+    const mustChangePassword = localStorage.getItem("mustChangePassword") === "true";
+    navigate(mustChangePassword ? "/first-login-change-password" : "/change-password");
+  };
+
   // ✅ KPI selection: update filter + smooth-scroll to table
   const handleKpiSelect = useCallback((next) => {
     setKpiFilter(next);
@@ -245,9 +251,13 @@ export default function Dashboard() {
                   )}
 
                   <li>
-                    <Link className="dropdown-item" to="/first-login-change-password">
+                    <button
+                      type="button"
+                      className="dropdown-item"
+                      onClick={handleChangePassword}
+                    >
                       Change Password
-                    </Link>
+                    </button>
                   </li>
 
                   {(role === "MANAGER" || role === "SUPER_ADMIN") && (

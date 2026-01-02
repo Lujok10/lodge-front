@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import Unauthorized from "./pages/Unauthorized";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import FirstLoginChangePassword from "./pages/FirstLoginChangePassword";
+import ChangePassword from "./pages/ChangePassword";
 import ForgotPassword from "./pages/ForgotPassword";
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -41,9 +42,23 @@ root.render(
           {/* PUBLIC */}
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
+
+          {/* PASSWORD ROUTES (PROTECTED) */}
           <Route
             path="/first-login-change-password"
-            element={<FirstLoginChangePassword />}
+            element={
+              <ProtectedRoute allowedRoles={["MANAGER", "RECEPTION", "SUPER_ADMIN"]}>
+                <FirstLoginChangePassword />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/change-password"
+            element={
+              <ProtectedRoute allowedRoles={["MANAGER", "RECEPTION", "SUPER_ADMIN"]}>
+                <ChangePassword />
+              </ProtectedRoute>
+            }
           />
 
           {/* SUPER ADMIN */}
