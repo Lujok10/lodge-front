@@ -17,6 +17,7 @@ export default function GuestList({
 }) {
   const [deletingId, setDeletingId] = useState(null);
 
+  // ✅ keep your existing filter pulse
   const [filterPulse, setFilterPulse] = useState(false);
   useEffect(() => {
     setFilterPulse(true);
@@ -24,8 +25,13 @@ export default function GuestList({
     return () => clearTimeout(t);
   }, [kpiFilter, search]);
 
-  const hotelCode = localStorage.getItem("hotelCode") || "";
+  const hotelCode = (localStorage.getItem("hotelCode") || "").trim();
 
+  // ✅ NEW: store fetched hotel daily rate (SUPER_ADMIN only)
+  const [hotelDailyRate, setHotelDailyRate] = useState(null);
+  const isSuperAdmin = String(role || "").toUpperCase() === "SUPER_ADMIN";
+
+  // ✅ helpers (these were missing in your pasted file)
   const money = (n) => (n == null || n === "" ? 0 : Number(n) || 0);
 
   const toDate = (ts) => {
@@ -44,6 +50,50 @@ export default function GuestList({
       d.getDate() === now.getDate()
     );
   };
+
+  // ✅ Option B: fetch hotels only if SUPER_ADMIN, then match by hotelCode
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadHotelRate = async () => {
+      if (!isSuperAdmin || !hotelCode) {
+        setHotelDailyRate(null);
+        return;
+      }
+
+      try {
+        const res = await api.get("/admin/hotels", {
+          headers: { "X-User-Role": "SUPER_ADMIN" },
+        });
+
+        const hotels = Array.isArray(res.data) ? res.data : [];
+        const match = hotels.find(
+          (h) =>
+            String(h.code || "").trim().toUpperCase() === hotelCode.toUpperCase()
+        );
+
+        const rate =
+          match && match.dailyRate != null && !Number.isNaN(Number(match.dailyRate))
+            ? Number(match.dailyRate)
+            : null;
+
+        if (!cancelled) setHotelDailyRate(rate);
+      } catch (e) {
+        console.warn(
+          "Failed to load hotels for rate:",
+          e?.response?.status,
+          e?.message
+        );
+        if (!cancelled) setHotelDailyRate(null);
+      }
+    };
+
+    loadHotelRate();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isSuperAdmin, hotelCode]);
 
   const handleDelete = async (id) => {
     if (!id || deletingId) return;
@@ -66,7 +116,10 @@ export default function GuestList({
       const msg =
         err?.response?.data ||
         "Failed to delete guest. Check permissions / server logs.";
-      notify.updateError(toastId, typeof msg === "string" ? msg : "Failed to delete guest");
+      notify.updateError(
+        toastId,
+        typeof msg === "string" ? msg : "Failed to delete guest"
+      );
     } finally {
       setDeletingId(null);
     }
@@ -81,7 +134,9 @@ export default function GuestList({
     } else if (kpiFilter === "CHECKOUTS_TODAY" || kpiFilter === "REVENUE_TODAY") {
       base = base.filter((g) => isToday(g.checkOutTime));
     } else if (kpiFilter === "LATE_FEES_TODAY") {
-      base = base.filter((g) => isToday(g.checkOutTime) && money(g.lateCheckoutFee) > 0);
+      base = base.filter(
+        (g) => isToday(g.checkOutTime) && money(g.lateCheckoutFee) > 0
+      );
     }
 
     if (!q) return base;
@@ -105,7 +160,8 @@ export default function GuestList({
         <div className="d-flex flex-column">
           <span className="fw-semibold">Guest List</span>
           <small className="text-muted">
-            Showing <strong>{filteredGuests.length}</strong> of <strong>{guests.length}</strong>
+            Showing <strong>{filteredGuests.length}</strong> of{" "}
+            <strong>{guests.length}</strong>
             {kpiFilter !== "ALL" && (
               <>
                 {" "}
@@ -182,7 +238,9 @@ export default function GuestList({
                   <tr key={guest.id} className="lift-row">
                     <td className="fw-semibold sticky-first">{guest.firstName || "-"}</td>
                     <td className="fw-semibold">{guest.lastName || "-"}</td>
-                    <td style={{ maxWidth: 220, wordBreak: "break-word" }}>{guest.email || "-"}</td>
+                    <td style={{ maxWidth: 220, wordBreak: "break-word" }}>
+                      {guest.email || "-"}
+                    </td>
                     <td>{guest.phone || "-"}</td>
                     <td className="text-monospace">{maskId(guest.idNumber)}</td>
 
@@ -190,20 +248,43 @@ export default function GuestList({
                       {guest.idVerified ? (
                         <span className="badge rounded-pill bg-success">Verified</span>
                       ) : guest.idNumber ? (
-                        <span className="badge rounded-pill bg-warning text-dark">Not Verified</span>
+                        <span className="badge rounded-pill bg-warning text-dark">
+                          Not Verified
+                        </span>
                       ) : (
                         <span className="badge rounded-pill bg-secondary">No ID</span>
                       )}
                     </td>
 
-                    <td>{guest.checkInTime ? new Date(guest.checkInTime).toLocaleString() : "N/A"}</td>
-                    <td>{guest.checkOutTime ? new Date(guest.checkOutTime).toLocaleString() : "Pending"}</td>
+                    <td>
+                      {guest.checkInTime
+                        ? new Date(guest.checkInTime).toLocaleString()
+                        : "N/A"}
+                    </td>
+                    <td>
+                      {guest.checkOutTime
+                        ? new Date(guest.checkOutTime).toLocaleString()
+                        : "Pending"}
+                    </td>
                     <td>{guest.paymentType || "-"}</td>
-                    <td>{guest.paymentAmount != null ? Number(guest.paymentAmount).toFixed(2) : "-"}</td>
-                    <td>{guest.lateCheckoutFee != null ? Number(guest.lateCheckoutFee).toFixed(2) : "-"}</td>
+                    <td>
+                      {guest.paymentAmount != null
+                        ? Number(guest.paymentAmount).toFixed(2)
+                        : "-"}
+                    </td>
+                    <td>
+                      {guest.lateCheckoutFee != null
+                        ? Number(guest.lateCheckoutFee).toFixed(2)
+                        : "-"}
+                    </td>
 
                     <td className="sticky-actions sticky-actions--cell">
-                      <div className={"d-flex gap-2 flex-wrap justify-content-end " + (compact ? "table-actions-compact" : "")}>
+                      <div
+                        className={
+                          "d-flex gap-2 flex-wrap justify-content-end " +
+                          (compact ? "table-actions-compact" : "")
+                        }
+                      >
                         <button
                           type="button"
                           className="btn btn-sm btn-outline-warning"
@@ -212,14 +293,17 @@ export default function GuestList({
                           Edit
                         </button>
 
-                        {!guest.checkOutTime && (role === "MANAGER" || role === "RECEPTION") && (
-                          <CheckoutForm
-                            guest={guest}
-                            refresh={onRefresh}
-                            role={role}
-                            onCheckoutSuccess={onReceipt}
-                          />
-                        )}
+                        {!guest.checkOutTime &&
+                          (role === "MANAGER" || role === "RECEPTION") && (
+                            <CheckoutForm
+                              guest={guest}
+                              refresh={onRefresh}
+                              role={role}
+                              onCheckoutSuccess={onReceipt}
+                              // ✅ pass rate to CheckoutForm (Option B)
+                              hotelDailyRate={hotelDailyRate}
+                            />
+                          )}
 
                         {guest.checkOutTime && onReceipt && (
                           <button

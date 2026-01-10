@@ -6,10 +6,19 @@ import dayjs from "dayjs";
 import toast from "react-hot-toast";
 import { getApiErrorMessage } from "../utils/apiError";
 
-const DAILY_RATE = 100;
-const LATE_CHECKOUT_FEE = 50;
-
-export default function CheckoutForm({ guest, refresh, role, onCheckoutSuccess }) {
+/**
+ * NO hardcoded pricing in frontend.
+ * Backend is source of truth for totals and late fees.
+ *
+ * Optional estimate: pass `hotelDailyRate` from parent (Option B).
+ */
+export default function CheckoutForm({
+  guest,
+  refresh,
+  role,
+  onCheckoutSuccess,
+  hotelDailyRate, // optional prop: number | string
+}) {
   const [paymentType, setPaymentType] = useState("CASH");
   const [idLast4, setIdLast4] = useState("");
   const [adminOverride, setAdminOverride] = useState(false);
@@ -25,27 +34,37 @@ export default function CheckoutForm({ guest, refresh, role, onCheckoutSuccess }
     if (!guest?.checkInTime) return null;
 
     const checkIn = dayjs(guest.checkInTime);
-    const checkout = dayjs();
+    const now = dayjs();
 
-    let daysStayed = checkout.diff(checkIn, "day");
+    let daysStayed = now.diff(checkIn, "day");
     if (daysStayed <= 0) daysStayed = 1;
 
-    const base = DAILY_RATE * daysStayed;
+    const hasFinal = guest?.paymentAmount != null;
 
-    let lateFee = 0;
-    const standardCheckoutTime = checkout.hour(11).minute(0).second(0);
-    if (checkout.isAfter(standardCheckoutTime)) lateFee = LATE_CHECKOUT_FEE;
+    const finalTotal = hasFinal ? Number(guest.paymentAmount) : null;
+    const finalLateFee = hasFinal ? Number(guest.lateCheckoutFee || 0) : null;
 
-    const total = base + lateFee;
-    return { daysStayed, base, lateFee, total };
-  }, [guest?.checkInTime]);
+    const rate = hotelDailyRate != null ? Number(hotelDailyRate) : null;
+    const canEstimate = rate != null && !Number.isNaN(rate);
+
+    const estimatedBase = !hasFinal && canEstimate ? rate * daysStayed : null;
+
+    return {
+      daysStayed,
+      dailyRate: canEstimate ? rate : null,
+      estimatedBase,
+      finalLateFee,
+      finalTotal,
+      final: hasFinal,
+    };
+  }, [guest?.checkInTime, guest?.paymentAmount, guest?.lateCheckoutFee, hotelDailyRate]);
 
   const closeCheckoutModal = () => {
     if (loading) return;
     setShowModal(false);
   };
 
-  // Stabilize modal: lock body scroll + ESC close + focus input
+  // modal behavior: lock scroll + ESC close + focus input
   useEffect(() => {
     if (!showModal) return;
 
@@ -56,7 +75,6 @@ export default function CheckoutForm({ guest, refresh, role, onCheckoutSuccess }
     };
     window.addEventListener("keydown", onKeyDown);
 
-    // Focus input on open (only when we expect ID entry)
     const t = setTimeout(() => {
       if (!(isSuperAdmin && adminOverride)) inputRef.current?.focus();
     }, 0);
@@ -65,22 +83,19 @@ export default function CheckoutForm({ guest, refresh, role, onCheckoutSuccess }
       clearTimeout(t);
       window.removeEventListener("keydown", onKeyDown);
       document.body.classList.remove("modal-open");
-
-      // Return focus to the checkout button after closing
       setTimeout(() => openBtnRef.current?.focus(), 0);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showModal]);
+  }, [showModal, adminOverride, isSuperAdmin]);
 
   const handleCheckout = async () => {
     if (!summary) {
-      toast.error("Cannot calculate stay summary. Check guest check-in time.");
+      toast.error("Cannot checkout: missing check-in time.");
       return;
     }
 
     const override = isSuperAdmin && adminOverride;
 
-    // If NOT override, enforce last4 rules on the client
     if (!override) {
       if (!guest?.idNumber || String(guest.idNumber).trim().length < 4) {
         toast.error(
@@ -104,23 +119,23 @@ export default function CheckoutForm({ guest, refresh, role, onCheckoutSuccess }
     }
 
     setLoading(true);
-    const toastId = toast.loading(override ? "Checking out (override)..." : "Checking out guest...");
+    const toastId = toast.loading(
+      override ? "Checking out (override)..." : "Checking out guest..."
+    );
 
     try {
       const payload = override
         ? { paymentType }
         : { paymentType, idNumber: (idLast4 || "").trim() };
 
-      await api.post(
-        `/guests/checkout/${guest.id}`,
-        payload,
-        {
-          headers: {
-            "X-User-Role": role || "MANAGER",
-            ...(override ? { "X-Admin-Override": "true" } : {}),
-          },
-        }
-      );
+     await api.post(`/guests/checkout/${guest.id}`, payload, {
+      headers: {
+        "X-User-Role": role || "MANAGER",
+        "X-Hotel-Code": guest?.hotel?.code, // ✅ this is available from DTO
+        ...(override ? { "X-Admin-Override": "true" } : {}),
+      },
+    });
+
 
       toast.success("Checkout completed", { id: toastId });
 
@@ -128,10 +143,12 @@ export default function CheckoutForm({ guest, refresh, role, onCheckoutSuccess }
       setIdLast4("");
       setAdminOverride(false);
 
+      // optional receipt action first
       if (onCheckoutSuccess) {
         await onCheckoutSuccess(guest.id);
       }
 
+      // then refresh list so UI shows backend totals
       await refresh?.();
     } catch (err) {
       console.error("Checkout failed:", err);
@@ -142,7 +159,9 @@ export default function CheckoutForm({ guest, refresh, role, onCheckoutSuccess }
       if (status === 422) {
         toast.error(msg || "The last 4 digits do not match the ID on file.", { id: toastId });
       } else if (status === 400) {
-        toast.error(msg || "Checkout failed. Please provide the last 4 digits of the ID.", { id: toastId });
+        toast.error(msg || "Checkout failed. Please provide the last 4 digits of the ID.", {
+          id: toastId,
+        });
       } else if (status === 403) {
         toast.error(msg || "You do not have permission to checkout this guest.", { id: toastId });
       } else if (status === 404) {
@@ -213,10 +232,7 @@ export default function CheckoutForm({ guest, refresh, role, onCheckoutSuccess }
                           onChange={(e) => setAdminOverride(e.target.checked)}
                           disabled={loading}
                         />
-                        <label
-                          className="form-check-label"
-                          htmlFor={`override-${guest?.id}`}
-                        >
+                        <label className="form-check-label" htmlFor={`override-${guest?.id}`}>
                           Admin Override (checkout without ID verification)
                         </label>
                         <div className="form-text">This action will be audited.</div>
@@ -241,14 +257,29 @@ export default function CheckoutForm({ guest, refresh, role, onCheckoutSuccess }
                         <p className="mb-1">
                           <strong>Days Stayed:</strong> {summary.daysStayed}
                         </p>
-                        <p className="mb-1">
-                          <strong>Base Amount:</strong> K{summary.base}
-                        </p>
-                        <p className="mb-2">
-                          <strong>Late Checkout Fee:</strong> K{summary.lateFee}
-                        </p>
-                        <hr className="my-2" />
-                        <p className="fw-bold mb-0">Total Payment: K{summary.total}</p>
+
+                        {summary.final ? (
+                          <>
+                            <p className="mb-1">
+                              <strong>Late Checkout Fee:</strong>{" "}
+                              GH₵{Number(summary.finalLateFee || 0).toFixed(2)}
+                            </p>
+                            <hr className="my-2" />
+                            <p className="fw-bold mb-0">
+                              Total Payment: GH₵{Number(summary.finalTotal || 0).toFixed(2)}
+                            </p>
+                          </>
+                        ) : summary.estimatedBase != null ? (
+                          <>
+                            <p className="mb-1">
+                              <strong>Estimated Base:</strong>{" "}
+                              GH₵{Number(summary.estimatedBase).toFixed(2)}
+                            </p>
+                            <p className="mb-0 text-muted">Final total is calculated at checkout.</p>
+                          </>
+                        ) : (
+                          <p className="mb-0 text-muted">Final total is calculated at checkout.</p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -275,7 +306,6 @@ export default function CheckoutForm({ guest, refresh, role, onCheckoutSuccess }
               </div>
             </div>
 
-            {/* Backdrop (do not close while loading) */}
             <div
               className="modal-backdrop fade show"
               onClick={() => {
