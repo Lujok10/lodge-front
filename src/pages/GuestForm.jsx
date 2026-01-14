@@ -1,46 +1,129 @@
-import { useState } from "react";
-import api from "../api"; // adjust path if GuestForm is in a different folder
+// src/components/GuestForm.jsx
+import { useMemo, useState } from "react";
+import api from "../api";
+import dayjs from "dayjs";
+import toast from "react-hot-toast";
+import { getApiErrorMessage } from "../utils/apiError";
 
-export default function GuestForm({ refresh }) {
+/**
+ * Check-in form:
+ * - includes stayDays (frontend)
+ * - backend still computes and stores checkoutTime (source of truth)
+ */
+export default function GuestForm({ refresh, role, hotelCode }) {
+  const [loading, setLoading] = useState(false);
+
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
     email: "",
     phone: "",
-    checkInTime: "",
-    checkOutTime: "",
+    idType: "NATIONAL_ID",
+    idNumber: "",
+    stayDays: 1,
     paymentType: "CASH",
     paymentAmount: "",
-    lateCheckoutFee: "",
+    // checkInTime optional: if blank backend will set now
+    checkInTime: "",
   });
 
-  const paymentOptions = ["CASH", "CARD", "ONLINE"];
+  const cutoffTime = "11:00"; // UI preview only (backend decides final)
+
+  const checkoutPreview = useMemo(() => {
+    const days = Number(form.stayDays);
+    if (!Number.isFinite(days) || days <= 0) return null;
+
+    const checkIn = form.checkInTime ? dayjs(form.checkInTime) : dayjs();
+    const date = checkIn.startOf("day").add(days, "day");
+    const [hh, mm] = cutoffTime.split(":").map((x) => Number(x));
+    return date.hour(hh).minute(mm).second(0);
+  }, [form.stayDays, form.checkInTime]);
 
   const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+
+    if (name === "stayDays") {
+      const n = Number(value);
+      setForm((p) => ({ ...p, stayDays: Number.isFinite(n) ? n : 1 }));
+      return;
+    }
+
+    setForm((p) => ({ ...p, [name]: value }));
+  };
+
+  const reset = () => {
+    setForm({
+      firstName: "",
+      lastName: "",
+      email: "",
+      phone: "",
+      idType: "NATIONAL_ID",
+      idNumber: "",
+      stayDays: 1,
+      paymentType: "CASH",
+      paymentAmount: "",
+      checkInTime: "",
+    });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!hotelCode || !String(hotelCode).trim()) {
+      toast.error("Missing hotel code. Please select a hotel first.");
+      return;
+    }
+
+    const stayDays = Number(form.stayDays);
+    if (!Number.isFinite(stayDays) || stayDays <= 0) {
+      toast.error("Stay days must be at least 1.");
+      return;
+    }
+
+    if (!form.idNumber || String(form.idNumber).trim().length < 4) {
+      toast.error("ID number is required at check-in.");
+      return;
+    }
+
+    const paymentAmount = Number(form.paymentAmount);
+    if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
+      toast.error("Payment amount must be greater than 0.");
+      return;
+    }
+
+    setLoading(true);
+    const toastId = toast.loading("Checking in guest...");
+
     try {
-      await api.post("/guests/checkin", form);
+      const payload = {
+        firstName: form.firstName,
+        lastName: form.lastName,
+        email: form.email,
+        phone: form.phone,
+        idType: form.idType,
+        idNumber: form.idNumber,
+        stayDays: stayDays,
+        paymentType: form.paymentType,
+        paymentAmount: paymentAmount,
+        // optional: if blank backend will set now
+        ...(form.checkInTime ? { checkInTime: form.checkInTime } : {}),
+      };
 
-      refresh?.();
-
-      setForm({
-        firstName: "",
-        lastName: "",
-        email: "",
-        phone: "",
-        checkInTime: "",
-        checkOutTime: "",
-        paymentType: "CASH",
-        paymentAmount: "",
-        lateCheckoutFee: "",
+      await api.post("/guests/checkin", payload, {
+        headers: {
+          "X-User-Role": role || "MANAGER",
+          "X-Hotel-Code": String(hotelCode).trim().toUpperCase(),
+        },
       });
+
+      toast.success("Guest checked in", { id: toastId });
+      reset();
+      await refresh?.();
     } catch (err) {
       console.error("Check-in failed:", err);
-      // optional: alert("Check-in failed");
+      toast.error(getApiErrorMessage(err, "Check-in failed."), { id: toastId });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -58,6 +141,7 @@ export default function GuestForm({ refresh }) {
             placeholder="First Name"
             className="form-control"
             required
+            disabled={loading}
           />
         </div>
 
@@ -70,6 +154,7 @@ export default function GuestForm({ refresh }) {
             placeholder="Last Name"
             className="form-control"
             required
+            disabled={loading}
           />
         </div>
 
@@ -81,7 +166,7 @@ export default function GuestForm({ refresh }) {
             onChange={handleChange}
             placeholder="Email"
             className="form-control"
-            required
+            disabled={loading}
           />
         </div>
 
@@ -93,46 +178,90 @@ export default function GuestForm({ refresh }) {
             onChange={handleChange}
             placeholder="Phone"
             className="form-control"
-            required
+            disabled={loading}
           />
         </div>
 
         <div className="col-md-6">
+          <label className="form-label">ID Type</label>
+          <select
+            name="idType"
+            value={form.idType}
+            onChange={handleChange}
+            className="form-select"
+            disabled={loading}
+          >
+            <option value="NATIONAL_ID">National ID</option>
+            <option value="PASSPORT">Passport</option>
+            <option value="DRIVERS_LICENSE">Driver&apos;s License</option>
+            <option value="OTHER">Other</option>
+          </select>
+        </div>
+
+        <div className="col-md-6">
+          <label className="form-label">ID Number</label>
+          <input
+            type="text"
+            name="idNumber"
+            value={form.idNumber}
+            onChange={handleChange}
+            placeholder="ID Number"
+            className="form-control"
+            required
+            disabled={loading}
+          />
+        </div>
+
+        <div className="col-md-6">
+          <label className="form-label">Stay Days</label>
+          <input
+            type="number"
+            name="stayDays"
+            min={1}
+            value={form.stayDays}
+            onChange={handleChange}
+            className="form-control"
+            required
+            disabled={loading}
+          />
+          <div className="form-text">
+            Checkout is scheduled for 11:00 AM on (check-in date + stay days).
+          </div>
+        </div>
+
+        <div className="col-md-6">
+          <label className="form-label">Check-in Time (optional)</label>
           <input
             type="datetime-local"
             name="checkInTime"
             value={form.checkInTime}
             onChange={handleChange}
             className="form-control"
+            disabled={loading}
           />
+          <div className="form-text">
+            Leave blank to use current time.
+          </div>
         </div>
 
         <div className="col-md-6">
-          <input
-            type="datetime-local"
-            name="checkOutTime"
-            value={form.checkOutTime}
-            onChange={handleChange}
-            className="form-control"
-          />
-        </div>
-
-        <div className="col-md-6">
+          <label className="form-label">Payment Type</label>
           <select
             name="paymentType"
             value={form.paymentType}
             onChange={handleChange}
             className="form-select"
+            disabled={loading}
           >
-            {paymentOptions.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
+            <option value="CASH">Cash</option>
+            <option value="DEBIT">Debit</option>
+            <option value="CREDIT">Credit</option>
+            <option value="OTHER">Other</option>
           </select>
         </div>
 
-        <div className="col-md-3">
+        <div className="col-md-6">
+          <label className="form-label">Payment Amount</label>
           <input
             type="number"
             name="paymentAmount"
@@ -141,25 +270,27 @@ export default function GuestForm({ refresh }) {
             onChange={handleChange}
             className="form-control"
             step="0.01"
+            required
+            disabled={loading}
           />
+          <div className="form-text">
+            This becomes the agreed amount locked at check-in.
+          </div>
         </div>
 
-        <div className="col-md-3">
-          <input
-            type="number"
-            name="lateCheckoutFee"
-            placeholder="Late Checkout Fee"
-            value={form.lateCheckoutFee}
-            onChange={handleChange}
-            className="form-control"
-            step="0.01"
-          />
-        </div>
+        {checkoutPreview && (
+          <div className="col-12">
+            <div className="alert alert-info mb-0">
+              <strong>Checkout Preview:</strong>{" "}
+              {checkoutPreview.format("MMM D, YYYY")} at {checkoutPreview.format("h:mm A")}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="mt-4">
-        <button type="submit" className="btn btn-primary">
-          Check In
+        <button type="submit" className="btn btn-primary" disabled={loading}>
+          {loading ? "Checking In..." : "Check In"}
         </button>
       </div>
     </form>

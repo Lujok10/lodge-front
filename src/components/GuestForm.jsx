@@ -1,114 +1,103 @@
-import { useState, useEffect } from "react";
+// src/components/GuestForm.jsx
+import { useMemo, useState } from "react";
 import api from "../api";
+import dayjs from "dayjs";
+
+// ✅ International phone input (country picker + dialing codes)
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
-import toast from "react-hot-toast";
 
-export default function GuestForm({ refresh, editingGuest, setEditingGuest }) {
-  const emptyForm = {
+export default function GuestForm({ refresh }) {
+  const [form, setForm] = useState({
     firstName: "",
     lastName: "",
     email: "",
-    phone: "",
-    checkInTime: "",
-    checkOutTime: "",
-    paymentType: "CASH",
-    paymentAmount: "",
-    lateCheckoutFee: "",
+    phone: "", // E.164 format like +233xxxxxxxxx
     idType: "NATIONAL_ID",
     idNumber: "",
-  };
-
-  const [form, setForm] = useState(emptyForm);
+    checkInTime: "",
+    stayDays: 1,
+    paymentType: "CASH",
+    paymentAmount: "",
+  });
 
   const paymentOptions = ["CASH", "DEBIT", "CREDIT", "OTHER"];
+  const idOptions = ["NATIONAL_ID", "PASSPORT", "DRIVER_LICENSE"];
 
-  // Populate when editingGuest changes
-  useEffect(() => {
-    if (!editingGuest) {
-      setForm(emptyForm);
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+
+    if (name === "stayDays") {
+      const n = parseInt(value, 10);
+      setForm((p) => ({ ...p, stayDays: Number.isNaN(n) ? 1 : Math.max(1, n) }));
       return;
     }
 
-    setForm({
-      firstName: editingGuest.firstName || "",
-      lastName: editingGuest.lastName || "",
-      email: editingGuest.email || "",
-      phone: editingGuest.phone || "",
-      checkInTime: editingGuest.checkInTime
-        ? String(editingGuest.checkInTime).slice(0, 16)
-        : "",
-      checkOutTime: editingGuest.checkOutTime
-        ? String(editingGuest.checkOutTime).slice(0, 16)
-        : "",
-      paymentType: editingGuest.paymentType || "CASH",
-      paymentAmount:
-        editingGuest.paymentAmount === null || editingGuest.paymentAmount === undefined
-          ? ""
-          : String(editingGuest.paymentAmount),
-      lateCheckoutFee:
-        editingGuest.lateCheckoutFee === null || editingGuest.lateCheckoutFee === undefined
-          ? ""
-          : String(editingGuest.lateCheckoutFee),
-      idType: editingGuest.idType || "NATIONAL_ID",
-      idNumber: editingGuest.idNumber || "",
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editingGuest]);
+    setForm((p) => ({ ...p, [name]: value }));
+  };
 
-  const handleChange = (e) =>
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  // ✅ Frontend preview: scheduled checkout = (check-in date + stayDays) @ 11:00 AM
+  const scheduledCheckoutPreview = useMemo(() => {
+    const stayDays = form.stayDays && form.stayDays > 0 ? form.stayDays : 1;
 
-  const handlePhoneChange = (value) =>
-    setForm((prev) => ({ ...prev, phone: value || "" }));
+    const checkIn = form.checkInTime ? dayjs(form.checkInTime) : dayjs();
+    if (!checkIn.isValid()) return null;
 
-  const normalizePayload = (f) => ({
-    ...f,
-    paymentAmount: f.paymentAmount === "" ? null : Number.parseFloat(f.paymentAmount),
-    lateCheckoutFee: f.lateCheckoutFee === "" ? null : Number.parseFloat(f.lateCheckoutFee),
-    checkInTime: f.checkInTime ? `${f.checkInTime}:00` : null,
-    checkOutTime: f.checkOutTime ? `${f.checkOutTime}:00` : null,
-  });
+    return checkIn
+      .startOf("day")
+      .add(stayDays, "day")
+      .hour(11)
+      .minute(0)
+      .second(0);
+  }, [form.checkInTime, form.stayDays]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const payload = normalizePayload(form);
-
-    if (!payload.idNumber || payload.idNumber.trim().length < 4) {
-      toast("ID verification required (min 4 characters).", { icon: "⚠️" });
-      return;
-    }
-
-    const toastId = toast.loading(editingGuest ? "Updating guest..." : "Checking in guest...");
+    const payload = {
+      firstName: form.firstName,
+      lastName: form.lastName,
+      email: form.email || null,
+      phone: form.phone || null, // ✅ E.164 value from PhoneInput
+      idType: form.idType,
+      idNumber: form.idNumber,
+      checkInTime: form.checkInTime || null,
+      stayDays: form.stayDays && form.stayDays > 0 ? form.stayDays : 1,
+      paymentType: form.paymentType,
+      paymentAmount: form.paymentAmount === "" ? null : Number(form.paymentAmount),
+    };
 
     try {
-      if (editingGuest?.id) {
-        await api.put(`/guests/${editingGuest.id}`, payload);
-        toast.success("Guest updated successfully", { id: toastId });
-      } else {
-        await api.post("/guests/checkin", payload);
-        toast.success("Guest checked in successfully", { id: toastId });
-      }
+      await api.post("/guests/checkin", payload, {
+        headers: {
+          "X-User-Role": (localStorage.getItem("role") || "MANAGER").toUpperCase(),
+          "X-Username": localStorage.getItem("username") || "",
+          "X-Hotel-Code": (localStorage.getItem("hotelCode") || "").trim().toUpperCase(),
+        },
+      });
 
-      setEditingGuest?.(null);
       await refresh?.();
-      setForm(emptyForm);
+
+      setForm({
+        firstName: "",
+        lastName: "",
+        email: "",
+        phone: "",
+        idType: "NATIONAL_ID",
+        idNumber: "",
+        checkInTime: "",
+        stayDays: 1,
+        paymentType: "CASH",
+        paymentAmount: "",
+      });
     } catch (err) {
-      console.error(err?.response || err);
-      const msg =
-        err?.response?.data && typeof err.response.data === "string"
-          ? err.response.data
-          : "Failed to save guest. Please try again.";
-      toast.error(msg, { id: toastId });
+      console.error("Check-in failed:", err);
     }
   };
 
   return (
     <form onSubmit={handleSubmit} className="p-4 border rounded bg-light">
-      <h3 className="mb-4 text-primary">
-        {editingGuest ? "Edit Guest" : "Guest Check-In"}
-      </h3>
+      <h3 className="mb-4 text-primary">Guest Check-In</h3>
 
       <div className="row g-3">
         <div className="col-md-6">
@@ -143,35 +132,35 @@ export default function GuestForm({ refresh, editingGuest, setEditingGuest }) {
             onChange={handleChange}
             placeholder="Email"
             className="form-control"
-            required
           />
         </div>
 
-        {/* International Phone Input */}
+        {/* ✅ International Phone Input (country picker) */}
         <div className="col-12">
           <PhoneInput
             international
-            defaultCountry="US"
+            defaultCountry="GH" // change to "US" if you prefer
             value={form.phone}
-            onChange={handlePhoneChange}
+            onChange={(val) => setForm((p) => ({ ...p, phone: val || "" }))}
             className="form-control"
-            placeholder="Enter phone number"
-            required
+            placeholder="Phone number"
           />
+          <small className="text-muted">Choose a country and enter the number.</small>
         </div>
 
-        {/* ID TYPE + ID NUMBER */}
         <div className="col-md-6">
           <select
             name="idType"
             value={form.idType}
             onChange={handleChange}
             className="form-select"
+            required
           >
-            <option value="NATIONAL_ID">National ID</option>
-            <option value="DRIVER_LICENSE">Driver's License</option>
-            <option value="PASSPORT">Passport</option>
-            <option value="OTHER">Other</option>
+            {idOptions.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt.replaceAll("_", " ")}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -187,6 +176,7 @@ export default function GuestForm({ refresh, editingGuest, setEditingGuest }) {
           />
         </div>
 
+        {/* ✅ ONLY ONE date input now: Check-in */}
         <div className="col-md-6">
           <input
             type="datetime-local"
@@ -195,16 +185,40 @@ export default function GuestForm({ refresh, editingGuest, setEditingGuest }) {
             onChange={handleChange}
             className="form-control"
           />
+          <small className="text-muted">Leave blank to use current time.</small>
         </div>
 
+        {/* ✅ Number of days */}
         <div className="col-md-6">
           <input
-            type="datetime-local"
-            name="checkOutTime"
-            value={form.checkOutTime}
+            type="number"
+            name="stayDays"
+            value={form.stayDays}
             onChange={handleChange}
             className="form-control"
+            min={1}
+            step={1}
+            required
+            placeholder="Number of Days"
           />
+          <small className="text-muted">Checkout will be auto-calculated.</small>
+        </div>
+
+        {/* ✅ Live preview */}
+        <div className="col-12">
+          <div className="alert alert-info mb-0">
+            <div className="d-flex flex-wrap gap-3 align-items-center justify-content-between">
+              <div>
+                <div className="fw-semibold">Scheduled Checkout (Preview)</div>
+                <div className="text-muted small">Based on stay days • cutoff 11:00 AM</div>
+              </div>
+              <div className="fw-bold">
+                {scheduledCheckoutPreview
+                  ? scheduledCheckoutPreview.format("MMM D, YYYY • h:mm A")
+                  : "—"}
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="col-md-6">
@@ -222,7 +236,7 @@ export default function GuestForm({ refresh, editingGuest, setEditingGuest }) {
           </select>
         </div>
 
-        <div className="col-md-3">
+        <div className="col-md-6">
           <input
             type="number"
             name="paymentAmount"
@@ -231,25 +245,14 @@ export default function GuestForm({ refresh, editingGuest, setEditingGuest }) {
             onChange={handleChange}
             className="form-control"
             step="0.01"
-          />
-        </div>
-
-        <div className="col-md-3">
-          <input
-            type="number"
-            name="lateCheckoutFee"
-            placeholder="Late Checkout Fee"
-            value={form.lateCheckoutFee}
-            onChange={handleChange}
-            className="form-control"
-            step="0.01"
+            required
           />
         </div>
       </div>
 
-      <div className="mt-4 d-grid">
-        <button type="submit" className="btn btn-primary">
-          {editingGuest ? "Update Guest" : "Check In"}
+      <div className="mt-4">
+        <button type="submit" className="btn btn-primary w-100">
+          Check In
         </button>
       </div>
     </form>

@@ -128,14 +128,13 @@ export default function CheckoutForm({
         ? { paymentType }
         : { paymentType, idNumber: (idLast4 || "").trim() };
 
-     await api.post(`/guests/checkout/${guest.id}`, payload, {
-      headers: {
-        "X-User-Role": role || "MANAGER",
-        "X-Hotel-Code": guest?.hotel?.code, // ✅ this is available from DTO
-        ...(override ? { "X-Admin-Override": "true" } : {}),
-      },
-    });
-
+      await api.post(`/guests/checkout/${guest.id}`, payload, {
+        headers: {
+          "X-User-Role": role || "MANAGER",
+          "X-Hotel-Code": guest?.hotel?.code, // ensure DTO includes hotel.code
+          ...(override ? { "X-Admin-Override": "true" } : {}),
+        },
+      });
 
       toast.success("Checkout completed", { id: toastId });
 
@@ -143,12 +142,10 @@ export default function CheckoutForm({
       setIdLast4("");
       setAdminOverride(false);
 
-      // optional receipt action first
       if (onCheckoutSuccess) {
         await onCheckoutSuccess(guest.id);
       }
 
-      // then refresh list so UI shows backend totals
       await refresh?.();
     } catch (err) {
       console.error("Checkout failed:", err);
@@ -245,7 +242,7 @@ export default function CheckoutForm({
                       type="text"
                       className="form-control mb-3"
                       value={idLast4}
-                      onChange={(e) => setIdLast4(e.target.value)}
+                      onChange={(e) => setIdLast4(e.target.value.replace(/\D/g, ""))}
                       maxLength={4}
                       inputMode="numeric"
                       placeholder="e.g. 1234"
@@ -275,10 +272,14 @@ export default function CheckoutForm({
                               <strong>Estimated Base:</strong>{" "}
                               GH₵{Number(summary.estimatedBase).toFixed(2)}
                             </p>
-                            <p className="mb-0 text-muted">Final total is calculated at checkout.</p>
+                            <p className="mb-0 text-muted">
+                              Final total is calculated by the backend at checkout.
+                            </p>
                           </>
                         ) : (
-                          <p className="mb-0 text-muted">Final total is calculated at checkout.</p>
+                          <p className="mb-0 text-muted">
+                            Final total is calculated by the backend at checkout.
+                          </p>
                         )}
                       </div>
                     )}
